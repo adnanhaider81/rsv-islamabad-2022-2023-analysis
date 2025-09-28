@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: Please cite this code and the associated paper.
+title: RSV Islamabad 2022-2023 analysis
+authors:
+  - family-names: Haider
+    given-names: Syed Adnan
+version: 1.0.0
+date-released: 2025-09-29
+preferred-citation:
+  type: article
+  title: Genomic characterization of human respiratory syncytial virus circulating in Islamabad, Pakistan, during an outbreak in 2022 to 2023
+  authors:
+    - family-names: Haider
+      given-names: Syed Adnan
+    - family-names: Jamal
+      given-names: Zunera
+    - family-names: Tahir
+      given-names: Faheem
+    - family-names: Salman
+      given-names: Muhammad
+    - family-names: Umair
+      given-names: Massab
+  year: 2024
+  doi: 10.1007/s00705-024-06036-0

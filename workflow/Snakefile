@@ -1,0 +1,141 @@
+# End to end Snakemake for RSV analysis
+# Requires NCBI_EMAIL env var for any Entrez fetch
+
+import yaml, os
+cfg = yaml.safe_load(open("config/config.yaml"))
+
+SAMPLES = [x["sample"] for x in cfg["pairs"]]
+META = {x["sample"]: x for x in cfg["pairs"]}
+THREADS = cfg["params"]["threads"]
+
+rule all:
+    input:
+        expand("results/consensus/{s}.fa", s=SAMPLES),
+        "results/consensus/all_consensus.fasta",
+        "results/aln/consensus_alignment.fasta",
+        "results/iqtree/consensus.treefile"
+
+rule fetch_reference:
+    output:
+        fasta="refs/{subtype}.fasta"
+    params:
+        acc=lambda w: cfg["ref_accessions"][w.subtype]
+    shell:
+        "printf '%s\n' {params.acc} > refs/{wildcards.subtype}.txt && "
+        "python analysis/scripts/fetch_genbank.py --acc refs/{wildcards.subtype}.txt --out_fasta {output.fasta}"
+
+rule index_reference:
+    input:
+        fasta="refs/{subtype}.fasta"
+    output:
+        "refs/{subtype}.fasta.bwt",
+        "refs/{subtype}.fasta.fai",
+        "refs/{subtype}.dict"
+    shell:
+        "bwa index {input.fasta} && "
+        "samtools faidx {input.fasta} && "
+        "picard CreateSequenceDictionary R={input.fasta} O={output[2]}"
+
+rule trim:
+    input:
+        r1=lambda w: META[w.s]["r1"],
+        r2=lambda w: META[w.s]["r2"]
+    output:
+        r1="work/{s}.R1.trim.fastq.gz",
+        r2="work/{s}.R2.trim.fastq.gz"
+    params:
+        adapters=cfg["params"]["trim_adapters"]
+    threads: THREADS
+    shell:
+        "trimmomatic PE -threads {threads} {input.r1} {input.r2} "
+        "{output.r1} /dev/null {output.r2} /dev/null "
+        "ILLUMINACLIP:{params.adapters}:2:30:10 SLIDINGWINDOW:4:20 MINLEN:50"
+
+rule map_bwa:
+    input:
+        ref="refs/{subtype}.fasta",
+        idx_bwt="refs/{subtype}.fasta.bwt",
+        r1="work/{s}.R1.trim.fastq.gz",
+        r2="work/{s}.R2.trim.fastq.gz"
+    output:
+        bam="work/{s}.sorted.bam"
+    threads: THREADS
+    shell:
+        "bwa mem -t {threads} {input.ref} {input.r1} {input.r2} | "
+        "samtools sort -@ {threads} -o {output.bam}"
+
+rule mark_duplicates:
+    input:
+        bam="work/{s}.sorted.bam"
+    output:
+        bam="work/{s}.dedup.bam",
+        metrics="work/{s}.dedup.metrics.txt"
+    shell:
+        "picard MarkDuplicates I={input.bam} O={output.bam} M={output.metrics} VALIDATION_STRINGENCY=SILENT REMOVE_SEQUENCING_DUPLICATES=false && "
+        "samtools index {output.bam}"
+
+rule depth_and_mask:
+    input:
+        bam="work/{s}.dedup.bam"
+    output:
+        depth="work/{s}.depth.txt",
+        mask="work/{s}.mask.bed"
+    params:
+        min_dp=cfg["params"]["min_depth_consensus"]
+    shell:
+        "samtools depth -a {input.bam} > {output.depth} && "
+        "awk -v OFS='\t' -v MIN={params.min_dp} '{ if ($3<MIN) print $1, $2-1, $2 }' {output.depth} > {output.mask}"
+
+rule call_and_consensus:
+    input:
+        bam="work/{s}.dedup.bam",
+        ref="refs/{subtype}.fasta",
+        fai="refs/{subtype}.fasta.fai",
+        mask="work/{s}.mask.bed"
+    output:
+        vcf="work/{s}.variants.vcf.gz",
+        cons="results/consensus/{s}.fa"
+    threads: THREADS
+    shell:
+        "bcftools mpileup -Ou -f {input.ref} {input.bam} | "
+        "bcftools call -mv -Oz -o {output.vcf} && "
+        "bcftools index {output.vcf} && "
+        "bcftools consensus -f {input.ref} -m {input.mask} {output.vcf} > {output.cons}"
+
+rule combine_consensus:
+    input:
+        expand("results/consensus/{s}.fa", s=SAMPLES)
+    output:
+        "results/consensus/all_consensus.fasta"
+    shell:
+        "cat {input} > {output}"
+
+rule fetch_tree_refs:
+    output:
+        "results/tree_refs.fasta"
+    params:
+        accs=",".join(cfg.get("tree_refs_acc", []))
+    shell:
+        "printf '%s\n' {params.accs} | tr ',' '\n' > config/refs.txt && "
+        "python analysis/scripts/fetch_genbank.py --acc config/refs.txt --out_fasta {output}"
+
+rule alignment:
+    input:
+        cons="results/consensus/all_consensus.fasta",
+        refs="results/tree_refs.fasta"
+    output:
+        "results/aln/consensus_alignment.fasta"
+    shell:
+        "mkdir -p results/aln && "
+        "cat {input.cons} {input.refs} > results/aln/input_for_alignment.fasta && "
+        "mafft --auto results/aln/input_for_alignment.fasta > {output}"
+
+rule iqtree:
+    input:
+        aln="results/aln/consensus_alignment.fasta"
+    output:
+        tree="results/iqtree/consensus.treefile"
+    threads: 2
+    shell:
+        "mkdir -p results/iqtree && "
+        "iqtree -s {input.aln} -m {cfg['params'].get('iqtree_model','GTR+G')} -bb {cfg['params'].get('bootstrap',1000)} -nt {threads} -pre results/iqtree/consensus"

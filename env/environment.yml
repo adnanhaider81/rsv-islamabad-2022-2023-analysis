@@ -1,0 +1,24 @@
+name: rsv-env
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.11
+  - pandas
+  - matplotlib
+  - biopython
+  - snakemake
+  - fastqc=0.11.9
+  - trimmomatic=0.39
+  - picard
+  - spades=3.15.5
+  - bwa
+  - samtools
+  - bcftools
+  - mafft
+  - iqtree
+  - seqkit
+  - blast
+  - entrez-direct
+  - nextclade

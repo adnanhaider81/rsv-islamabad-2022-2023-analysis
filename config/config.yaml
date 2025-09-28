@@ -1,0 +1,26 @@
+pairs:
+  - sample: RSV_A_001
+    subtype: A
+    r1: data-private/RSV_A_001_R1.fastq.gz
+    r2: data-private/RSV_A_001_R2.fastq.gz
+  - sample: RSV_B_001
+    subtype: B
+    r1: data-private/RSV_B_001_R1.fastq.gz
+    r2: data-private/RSV_B_001_R2.fastq.gz
+
+ref_accessions:
+  A: NC_038235.1
+  B: NC_001781.1
+
+tree_refs_acc:
+  - OP890340.1
+  - OR143212.1
+  - OQ024128.1
+
+params:
+  threads: 4
+  trim_adapters: env/TruSeq3-PE.fa
+  min_depth_consensus: 10
+  min_qual: 20
+  iqtree_model: GTR+G
+  bootstrap: 1000
