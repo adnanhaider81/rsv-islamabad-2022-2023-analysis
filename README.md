@@ -20,25 +20,32 @@ End to end analysis for RSV-A and RSV-B as in the study. All steps are automated
    - Compute depth and mask low coverage positions to N using a user-set threshold default 10.
    - Call variants with bcftools and generate a masked consensus with bcftools consensus.
 
-4) Multiple sequence alignment and phylogeny
+4) De novo assembly and contig validation
+   - Assemble with SPAdes.
+   - Contig QC: length, percent Ns, GC, N50. Expect a principal contig near 15.2 kb.
+   - Identify closest matches using BLAST remote against NCBI nt.
+   - Fetch selected GenBank sequences for context.
+   -
+
+5) Multiple sequence alignment and phylogeny
    - MAFFT alignment of your consensus plus context sequences.
    - IQ-TREE with configurable model. Use GTR+G for strict parity with the paper or MFP to enable ModelFinder automatic model selection.
    - 1000 ultrafast bootstraps by default. SH-aLRT can be enabled if required.
 
-5) Clade and genotype assignment
+6) Clade and genotype assignment
    - Nextclade datasets for RSV-A and RSV-B to assign genotypes and clades.
 
-6) Mutational analysis
+7) Mutational analysis
    - Amino acid differences in G and F compared to RSV-A NC_038235.1 or RSV-B NC_001781.1. Results exported as TSV.
 
-7) Outputs
+8) Outputs
    - Per sample consensus: results/consensus/<sample>.fa
    - Combined consensus: results/consensus/all_consensus.fasta
    - Alignment: results/aln/consensus_alignment.fasta
    - Maximum likelihood tree: results/iqtree/consensus.treefile
    - QC tables and mutation reports under results/
 
-8) Repro and compliance
+9) Repro and compliance
    - CITATION.cff, MIT LICENSE, CI check for quick verification.
    - Never commit restricted data. Set NCBI_EMAIL once for Entrez-based steps.
 
