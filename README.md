@@ -129,7 +129,7 @@ Primary deliverable: results/consensus/<sample>.fa
 ## De novo assembly and contig QC
 **SPAdes and contig QC**
 ```bash
-spades.py -1 results/<sample>_R1.trim.fastq.gz -2 results/<sample>_R2.trim.fastq.gz -o results/spades/<sample>
+spades.py -1 results/trim/<sample>_R1.trim.fastq.gz -2 results/trim/<sample>_R2.trim.fastq.gz -o results/spades/<sample>
 python analysis/scripts/contig_qc.py --in results/spades/<sample>/contigs.fasta --out_tsv results/spades/<sample>/contigs.qc.tsv
 # Inspect the .summary.txt. Expect one principal contig near 15200 bases.
 ```
@@ -137,14 +137,14 @@ python analysis/scripts/contig_qc.py --in results/spades/<sample>/contigs.fasta 
 **Closest matches and context set**
 ```bash
 python analysis/scripts/blast_closest.py --in results/spades/<sample>/contigs.fasta --out_tsv results/blast/<sample>.nt.tsv --max_hits 100
-cut -f2 results/blast/<sample>.nt.tsv | head -n 50 > config/refs.txt
-python analysis/scripts/fetch_genbank.py --acc config/refs.txt --out_fasta results/refs.fasta
+cut -f2 results/blast/<sample>.nt.tsv | head -n 50 > results/blast/refs.txt
+python analysis/scripts/fetch_genbank.py --acc results/blast/refs.txt --out_fasta results/blast/refs.fasta
 ```
 
 **Alignment and phylogeny**
 ```bash
-mafft --auto results/refs.fasta > results/aln/context.fasta
-iqtree -s results/aln/context.fasta -m GTR+G -bb 1000 -nt 4 -pre results/iqtree/context
+mafft --auto results/blast/refs.fasta > results/blast/context.fasta
+iqtree -s results/blast/context.fasta -m GTR+G -bb 1000 -nt 4 -pre results/iqtree/context
 ```
 
 ## Clade and genotype assignment
