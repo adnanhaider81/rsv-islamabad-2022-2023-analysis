@@ -25,7 +25,6 @@ End to end analysis for RSV-A and RSV-B as in the study. All steps are automated
    - Contig QC: length, percent Ns, GC, N50. Expect a principal contig near 15.2 kb.
    - Identify closest matches using BLAST remote against NCBI nt.
    - Fetch selected GenBank sequences for context.
-   -
 
 5) Multiple sequence alignment and phylogeny
    - MAFFT alignment of your consensus plus context sequences.
