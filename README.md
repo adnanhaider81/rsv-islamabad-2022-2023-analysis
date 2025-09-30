@@ -153,8 +153,8 @@ nextclade dataset get --name rsv-a --output-dir datasets/rsv-a
 nextclade dataset get --name rsv-b --output-dir datasets/rsv-b
 
 # Run on your consensus
-nextclade run --input-dataset datasets/rsv-a --output-all results/nextclade/a results/consensus_rsv_a.fasta
-nextclade run --input-dataset datasets/rsv-b --output-all results/nextclade/b results/consensus_rsv_b.fasta
+nextclade run --input-dataset datasets/rsv-a --output-all results/nextclade/a results/consensus/<sample>.fa
+nextclade run --input-dataset datasets/rsv-b --output-all results/nextclade/b results/consensus/<sample>.fa
 ```
 
 ## Mutational analysis in G and F
