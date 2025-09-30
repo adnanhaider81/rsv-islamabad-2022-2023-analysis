@@ -1,12 +1,20 @@
-# End to end Snakemake for RSV analysis
-# Requires NCBI_EMAIL env var for any Entrez fetch
+# RSV Snakemake with read groups for Picard compatibility
 
-import yaml, os
+import yaml
+
 cfg = yaml.safe_load(open("config/config.yaml"))
 
 SAMPLES = [x["sample"] for x in cfg["pairs"]]
 META = {x["sample"]: x for x in cfg["pairs"]}
 THREADS = cfg["params"]["threads"]
+
+SUBTYPE = {x["sample"]: x["subtype"] for x in cfg["pairs"]}
+
+def subtype_of(sample):
+    st = SUBTYPE.get(sample)
+    if st is None:
+        raise ValueError(f"Missing subtype for sample {sample} in config.yaml")
+    return st
 
 rule all:
     input:
@@ -21,6 +29,7 @@ rule fetch_reference:
     params:
         acc=lambda w: cfg["ref_accessions"][w.subtype]
     shell:
+        "mkdir -p refs && "
         "printf '%s\n' {params.acc} > refs/{wildcards.subtype}.txt && "
         "python analysis/scripts/fetch_genbank.py --acc refs/{wildcards.subtype}.txt --out_fasta {output.fasta}"
 
@@ -53,15 +62,18 @@ rule trim:
 
 rule map_bwa:
     input:
-        ref="refs/{subtype}.fasta",
-        idx_bwt="refs/{subtype}.fasta.bwt",
+        ref=lambda w: f"refs/{subtype_of(w.s)}.fasta",
+        idx_bwt=lambda w: f"refs/{subtype_of(w.s)}.fasta.bwt",
         r1="work/{s}.R1.trim.fastq.gz",
         r2="work/{s}.R2.trim.fastq.gz"
     output:
         bam="work/{s}.sorted.bam"
+    params:
+        # Add read groups so Picard MarkDuplicates does not NPE
+        rg=lambda w: f"@RG\\tID:{w.s}\\tSM:{w.s}\\tLB:{subtype_of(w.s)}\\tPL:ILLUMINA\\tPU:{w.s}.1"
     threads: THREADS
     shell:
-        "bwa mem -t {threads} {input.ref} {input.r1} {input.r2} | "
+        "bwa mem -t {threads} -R '{params.rg}' {input.ref} {input.r1} {input.r2} | "
         "samtools sort -@ {threads} -o {output.bam}"
 
 rule mark_duplicates:
@@ -83,14 +95,13 @@ rule depth_and_mask:
     params:
         min_dp=cfg["params"]["min_depth_consensus"]
     shell:
-        "samtools depth -a {input.bam} > {output.depth} && "
-        "awk -v OFS='\t' -v MIN={params.min_dp} '{ if ($3<MIN) print $1, $2-1, $2 }' {output.depth} > {output.mask}"
+        "samtools depth -a {input.bam} > {output.depth} && awk -v OFS='\\t' -v MIN={params.min_dp} '{{ if ($3<MIN) print $1, $2-1, $2 }}' {output.depth} > {output.mask}"
 
 rule call_and_consensus:
     input:
         bam="work/{s}.dedup.bam",
-        ref="refs/{subtype}.fasta",
-        fai="refs/{subtype}.fasta.fai",
+        ref=lambda w: f"refs/{subtype_of(w.s)}.fasta",
+        fai=lambda w: f"refs/{subtype_of(w.s)}.fasta.fai",
         mask="work/{s}.mask.bed"
     output:
         vcf="work/{s}.variants.vcf.gz",
@@ -108,7 +119,7 @@ rule combine_consensus:
     output:
         "results/consensus/all_consensus.fasta"
     shell:
-        "cat {input} > {output}"
+        "mkdir -p results/consensus && cat {input} > {output}"
 
 rule fetch_tree_refs:
     output:
@@ -116,6 +127,7 @@ rule fetch_tree_refs:
     params:
         accs=",".join(cfg.get("tree_refs_acc", []))
     shell:
+        "mkdir -p config results && "
         "printf '%s\n' {params.accs} | tr ',' '\n' > config/refs.txt && "
         "python analysis/scripts/fetch_genbank.py --acc config/refs.txt --out_fasta {output}"
 
@@ -136,6 +148,10 @@ rule iqtree:
     output:
         tree="results/iqtree/consensus.treefile"
     threads: 2
+    params:
+        model=lambda w: cfg["params"].get("iqtree_model", "GTR+G"),
+        bootstrap=lambda w: cfg["params"].get("bootstrap", 1000),
+        prefix="results/iqtree/consensus"
     shell:
         "mkdir -p results/iqtree && "
-        "iqtree -s {input.aln} -m {cfg['params'].get('iqtree_model','GTR+G')} -bb {cfg['params'].get('bootstrap',1000)} -nt {threads} -pre results/iqtree/consensus"
+        "iqtree -s {input.aln} -m {params.model} -bb {params.bootstrap} -nt {threads} -pre {params.prefix}"
